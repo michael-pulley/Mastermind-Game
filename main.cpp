@@ -1,13 +1,17 @@
+
 #include <iostream>
 #include <string>
 #include <vector>
 #include <algorithm>
 #include <iomanip>
 #include <cctype>
+#include <random>
+#include <utility>
+#include <memory>
 
 // Abstract Base Class
 class BaseGame {
-
+protected:
     std::string m_secretCode;
     int m_maxAttempts;
     int m_currentAttempts;
@@ -15,12 +19,12 @@ class BaseGame {
     std::string m_correct;
 
     // Functions that must be implemented by derived classes
-    void generateSecretCode();
-    bool isValidGuess(const std::string& guess) const ;
-    std::string getGameModeRules() const ;
+    virtual void generateSecretCode() = 0;
+    virtual bool isValidGuess(const std::string& guess) const = 0;
+    virtual std::string getGameModeRules() const = 0;
 
     // Inherited helper function to check for duplicate characters
-    void hasUniqueCharacters(const std::string& str) const {
+    bool hasUniqueCharacters(const std::string& str) const {
         for (size_t i = 0; i < str.length(); ++i) {
             for (size_t j = i + 1; j < str.length(); ++j) {
                 if (str[i] == str[j]) return false;
@@ -46,7 +50,7 @@ class BaseGame {
     }
 
 public:
-    BaseGame(int length, int attempts){
+    BaseGame(int length, int attempts) {
         m_codeLength = length;
         m_maxAttempts = attempts;
         m_currentAttempts = 0;
@@ -59,6 +63,7 @@ public:
     // Inherited method for controlling the main game flow
     void play() {
         // call to generate a secret code
+        generateSecretCode();
 
         std::cout << "\n--- Starting Game ---\n";
         std::cout << getGameModeRules() << "\n";
@@ -75,14 +80,15 @@ public:
             }
 
             m_currentAttempts++;
-            auto [red, white] = calculateRedAndWhite(guess);
+            std::pair<int, int> result = calculateRedAndWhite(guess);
 
-            if (red == m_codeLength) {
+            if (result.first == m_codeLength) {
                 std::cout << "\nCongratulations! You guessed the secret code: " << m_secretCode << "\n";
                 return;
             }
+
             std::cout << "Correct ->" << m_correct << std::endl;
-            std::cout << "Result: " << red << " Red(s), " << white << " White(s)\n\n";
+            std::cout << "Result: " << result.first << " Red(s), " << result.second << " White(s)\n\n";
         }
 
         std::cout << "\nGame Over! You ran out of attempts. The secret code was: " << m_secretCode << "\n";
@@ -90,7 +96,7 @@ public:
 };
 
 // Derived Class 1: 4-Digit Number Mode
-class NumericGame {
+class NumericGame : public BaseGame {
 protected:
     void generateSecretCode() override {
         std::string digits = "0123456789";
@@ -102,9 +108,11 @@ protected:
 
     bool isValidGuess(const std::string& guess) const override {
         if (guess.length() != static_cast<size_t>(m_codeLength)) return false;
+
         for (char c : guess) {
             if (!std::isdigit(c)) return false;
         }
+
         return hasUniqueCharacters(guess);
     }
 
@@ -112,14 +120,14 @@ protected:
         return "Mode: Numbers. Guess a " + std::to_string(m_codeLength) + "-digit number with unique digits (0-9).";
     }
 
-
-    NumericGame(int length = 4, int attempts = 10): BaseGame(length, attempts) {
-         m_correct = "xxxx";
+public:
+    NumericGame(int length = 4, int attempts = 10) : BaseGame(length, attempts) {
+        m_correct = "xxxx";
     }
 };
 
 // Derived Class 2: Isogram Word Mode
-class WordGame  {
+class WordGame : public BaseGame {
 private:
     std::vector<std::string> wordBank = {"plane", "steam", "coast", "bride", "white", "false"};
 
@@ -134,9 +142,11 @@ protected:
 
     bool isValidGuess(const std::string& guess) const override {
         if (guess.length() != static_cast<size_t>(m_codeLength)) return false;
+
         for (char c : guess) {
             if (!std::islower(c)) return false;
         }
+
         return hasUniqueCharacters(guess);
     }
 
@@ -144,37 +154,39 @@ protected:
         return "Mode: Word Isogram. Guess a " + std::to_string(m_codeLength) + "-letter lowercase word with no repeating letters.";
     }
 
-
-    WordGame(int attempts = 10): BaseGame(5, attempts) {
+public:
+    WordGame(int attempts = 10) : BaseGame(5, attempts) {
         m_correct = "xxxxx";
     }
 };
 
 int main() {
     int choice;
-    std::cout << "Select Game Mode:\n1. Number Mode (4 digits)\n2. Word Mode (6 letters)\nChoice: ";
-
+    std::cout << "Select Game Mode:\n1. Number Mode (4 digits)\n2. Word Mode (5 letters)\nChoice: ";
+    std::cin >> choice;
 
     // Create a polymorphic pointer that can point to a BaseGame object or any class of object derived from BaseGame
     // Currently hold nullptr (nothing)
     // unique_ptr means the object will automatically be deleted when it goes out of scope to prevent memory leak
-
+    std::unique_ptr<BaseGame> game;
 
     if (choice == 2) {
         // Instantiate a new WordGame object on heap memory passing 10 to the constructor
         // Then assign assign ownership of the object to the game pointer
-
+        game = std::make_unique<WordGame>(10);
     } else {
         // Instantiate a new NumericGame object on heap memory passing 4 and 10 to the constructor
         // Then assign assign ownership of the object to the game pointer
-
+        game = std::make_unique<NumericGame>(4, 10);
     }
 
     /*
      * Unified Interface: Even though WordGame and NumericGame are different classes, storing them in a
-     * BaseGame pointer lets the rest of your program interact with game the exact same way
+     * BaseGame pointer lets the rest of your program interact with the game the exact same way
      * without needing to know which specific version was created.
      */
+
+    game->play();
 
     return 0;
 }
